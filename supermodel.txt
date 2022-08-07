@@ -1,0 +1,157 @@
+model{
+
+##LIKELIHOOD
+
+for (i in 1:nSubjects){ #nsubjs is a variable that comes in from mat jags, you can replace with hard coded number if easier
+
+    oneminEta2[i] = 1 - eta2[i] 
+
+	for (c in 1:conditions){
+
+	       oneminEta[i,c] = 1 - eta[i,c]          #1 minus eta term
+
+	    for (j in 1:ntrials){ #ntrials is a variable that imports from mat jags, you can replace with hard coded number if easier
+
+      		y[i,c,j]  ~ dbern(p_risk[i,c,j,z[i]]) 
+
+      		  #3eta_1ratio_3beta
+            p_risk[i,c,j,6] = max(0.000001,min(0.999999,tmp_ratio[i,c,j]))     # p_risk is the probability of choosing the risky option, max/min ensures 0 < p_risk < 1
+            p_risk[i,c,j,8] = max(0.000001,min(0.999999,tmp_ratio[i,c,j]))     # p_risk is the probability of choosing the risky option, max/min ensures 0 < p_risk < 1
+            tmp_ratio[i,c,j] = (1)/(1+(exp(sdeuiso_ratio[i,c,j])))                 # p_risk temporary file, 0 <= p_risk <= 1
+            sdeuiso_ratio[i,c,j] = -1 * beta[i,c] * deuiso_ratio[i,c,j]            # delta expected utility scaled by sensitivity parameter, pos or neg  
+            deuiso_ratio[i,c,j] = log(ratio[i,c,j])
+            ratio[i,c,j] = tedusafe[i,c,j]  / tedurisk[i,c,j]    # ratio of utility between risk and safe, < 1 means risky worse, > 1 risky better. 
+            tedusafe[i,c,j] = max(-0.999999,min(- 0.000001,edusafe[i,c,j])) #tedusafe stands for temporary value of expected delta utility safe, scaled between -1 and 0
+            tedurisk[i,c,j] = max(-0.999999,min(- 0.000001,edurisk[i,c,j])) #tedurisk stands for temporary value of expected delta utility risk, scaled between -1 and 0
+
+            #3eta_0ratio_3beta
+      		  p_risk[i,c,j, 2] = max(0.000001,min(0.999999,tmp[i,c,j]))     # p_risk is the probability of choosing the risky option, max/min ensures 0 < p_risk < 1
+      		  p_risk[i,c,j, 4] = max(0.000001,min(0.999999,tmp[i,c,j]))     # p_risk is the probability of choosing the risky option, max/min ensures 0 < p_risk < 1
+            tmp[i,c,j] = (1)/(1+(exp(sdeuiso[i,c,j])))                 # p_risk temporary file, 0 <= p_risk <= 1
+            sdeuiso[i,c,j] = -1 * beta[i,c] * deuiso[i,c,j]            # delta expected utility scaled by sensitivity parameter, pos or neg  
+            deuiso[i,c,j] = edurisk[i,c,j] - edusafe[i,c,j]          # difference between expected change in utility between risk and safe, negative means risky worse, pos risky better. 
+            
+            #preprocessing for 3eta models
+            edusafe[i,c,j] = dusafe[i,c,j]                             # expected delta utility safe, should be negative 
+            edurisk[i,c,j] = (durisk1[i,c,j]+durisk2[i,c,j])/2         # expected delta utility risk, should be negative
+            dusafe[i,c,j] = usafe[i,c,j]-uwealth[i,c,j]                # delta utility after safe outcome, should be negative
+            durisk1[i,c,j] = urisk1[i,c,j]-uwealth[i,c,j]              # delta utility after risky outcome, should be negative
+            durisk2[i,c,j] = urisk2[i,c,j]-uwealth[i,c,j]              # delta utility after risky outcome, should be zero 
+            usafe[i,c,j] = (pow(wsafe[i,c,j] ,oneminEta[i,c]) -1 ) / oneminEta[i,c]    # utility of wealth after safe outcome, should be positive    
+            urisk1[i,c,j] = (pow(wrisk1[i,c,j] ,oneminEta[i,c]) -1 ) / oneminEta[i,c]  # utility of wealth after risky outcome 1, should be positive
+            urisk2[i,c,j] = (pow(wrisk2[i,c,j] ,oneminEta[i,c]) -1 ) / oneminEta[i,c]  # utility of wealth after risky outcome 2, should be positive
+            wsafe[i,c,j] = wealth[i,c,j] + safe[i,c,j]                 # wealth after the safe outcome, should be positive
+            wrisk1[i,c,j] = wealth[i,c,j] + risk[i,c,j]                # wealth after risky outcome 1, should be positive
+            wrisk2[i,c,j] = wealth[i,c,j]                              # wealth after risky outcome 2, should be positive
+            ev_risk[i,c,j] = risk[i,c,j] * 0.5                         # expected value of risky option, should be negative
+            uwealth[i,c,j] = (pow(wealth[i,c,j],oneminEta[i,c])-1)/oneminEta[i,c] # utility of current wealth, should be positive
+
+
+      		  #0eta_1ratio_3beta
+      		  p_risk[i,c,j,1]     = max(0.000001,min(0.999999,tmp_theta[i,c,j])) # ensure 0 < cp < 1, accomodates parameter expansion for z
+            p_risk[i,c,j,3]    = max(0.000001,min(0.999999,tmp_theta[i,c,j])) # ensure 0 < cp < 1, accomodates parameter expansion for z
+      		  tmp_theta[i,c,j] = (1)/(1+(exp(slogratio[i,c,j])))  
+      		  slogratio[i,c,j] = -beta[i,c]*logratio[i,c,j]
+            logratio[i,c,j] = log(ratioevsafe2risk[i,c,j]) #log value of the ratio
+     		    ratioevsafe2risk[i,c,j]   = eu_safe[i,c,j] / eu_risk[i,c,j] # ratio of expected values between risk and safe, < 1 means risky worse, > 1 risky better. 
+
+            #0eta_0ratio_3beta
+            p_risk[i,c,j,5]    = max(0.000001,min(0.999999,tmp_p[i,c,j]))
+            p_risk[i,c,j,7]    = max(0.000001,min(0.999999,tmp_p[i,c,j]))
+            tmp_p[i,c,j] = (1)/(1+(exp(sdeu[i,c,j])))  
+            sdeu[i,c,j]      = -beta[i,c]*deu[i,c,j]
+            deu[i,c,j]       = eu_risk[i,c,j]-eu_safe[i,c,j]
+
+            #0eta models preprocssing 
+     		    eu_risk[i,c,j]   = risk[i,c,j]*0.5
+      		  eu_safe[i,c,j]   = safe[i,c,j]
+
+
+            #1eta_1ratio_3beta
+            p_risk[i,c,j, 10] = max(0.000001,min(0.999999,tmp_ratio2[i,c,j]))     # p_risk is the probability of choosing the risky option, max/min ensures 0 < p_risk < 1
+            p_risk[i,c,j, 12] = max(0.000001,min(0.999999,tmp_ratio2[i,c,j]))     # p_risk is the probability of choosing the risky option, max/min ensures 0 < p_risk < 1
+            tmp_ratio2[i,c,j] = (1)/(1+(exp(sdeuiso_ratio2[i,c,j])))                 # p_risk temporary file, 0 <= p_risk <= 1
+            sdeuiso_ratio2[i,c,j] = -1 * beta[i,c] * deuiso_ratio2[i,c,j]            # delta expected utility scaled by sensitivity parameter, pos or neg  
+            deuiso_ratio2[i,c,j] = log(ratio2[i,c,j])
+            ratio2[i,c,j] = tedusafe2[i,c,j]  / tedurisk2[i,c,j]    # ratio of utility between risk and safe, < 1 means risky worse, > 1 risky better. 
+            tedusafe2[i,c,j] = max(-0.999999,min(- 0.000001,edusafe2[i,c,j])) #tedusafe stands for temporary value of expected delta utility safe, scaled between -1 and 0
+            tedurisk2[i,c,j] = max(-0.999999,min(- 0.000001,edurisk2[i,c,j])) #tedurisk stands for temporary value of expected delta utility risk, scaled between -1 and 0
+
+            #1eta_0ratio_3beta
+            p_risk[i,c,j, 9] = max(0.000001,min(0.999999,tmp_1[i,c,j]))     # p_risk is the probability of choosing the risky option, max/min ensures 0 < p_risk < 1
+            p_risk[i,c,j, 11] = max(0.000001,min(0.999999,tmp_1[i,c,j]))     # p_risk is the probability of choosing the risky option, max/min ensures 0 < p_risk < 1
+            tmp_1[i,c,j] = (1)/(1+(exp(sdeuiso_1[i,c,j])))                 # p_risk temporary file, 0 <= p_risk <= 1
+            sdeuiso_1[i,c,j] = -1 * beta[i,c] * deuiso_1[i,c,j]            # delta expected utility scaled by sensitivity parameter, pos or neg  
+            deuiso_1[i,c,j] = edurisk2[i,c,j] - edusafe2[i,c,j]          # difference between expected change in utility between risk and safe, negative means risky worse, pos risky better. 
+
+            #1eta not condition-dependent condition processing
+            edusafe2[i,c,j] = dusafe2[i,c,j]                             # expected delta utility safe, should be negative 
+            edurisk2[i,c,j] = (durisk1_2[i,c,j]+durisk2_2[i,c,j])/2         # expected delta utility risk, should be negative
+            dusafe2[i,c,j] = usafe2[i,c,j]-uwealth2[i,c,j]                # delta utility after safe outcome, should be negative
+            durisk1_2[i,c,j] = urisk1_2[i,c,j]-uwealth2[i,c,j]              # delta utility after risky outcome, should be negative
+            durisk2_2[i,c,j] = urisk2_2[i,c,j]-uwealth2[i,c,j]              # delta utility after risky outcome, should be zero 
+            usafe2[i,c,j] = (pow(wsafe2[i,c,j] ,oneminEta2[i]) -1 ) / oneminEta2[i]    # utility of wealth after safe outcome, should be positive    
+            urisk1_2[i,c,j] = (pow(wrisk1_2[i,c,j] ,oneminEta2[i]) -1 ) / oneminEta2[i]  # utility of wealth after risky outcome 1, should be positive
+            urisk2_2[i,c,j] = (pow(wrisk2_2[i,c,j] ,oneminEta2[i]) -1 ) / oneminEta2[i]  # utility of wealth after risky outcome 2, should be positive
+            wsafe2[i,c,j] = wealth2[i,c*j] + safe2[i,c*j]                 # wealth after the safe outcome, should be positive
+            wrisk1_2[i,c,j] = wealth2[i,c*j] + risk2[i,c*j]                # wealth after risky outcome 1, should be positive
+            wrisk2_2[i,c,j] = wealth2[i,c*j]                              # wealth after risky outcome 2, should be positive
+            uwealth2[i,c,j] = (pow(wealth2[i,c*j],oneminEta2[i])-1)/oneminEta2[i] # utility of current wealth, should be positive
+
+
+	    } # end of trials
+
+	} # end of conditions
+
+    } # end of subjects
+
+
+## PRIORS
+       mPriorProb[1] <- 0.083
+       mPriorProb[2] <- 0.083
+       mPriorProb[3] <- 0.083
+       mPriorProb[4] <- 0.083
+       mPriorProb[5] <- 0.083
+       mPriorProb[6] <- 0.083
+       mPriorProb[7] <- 0.083
+       mPriorProb[8] <- 0.083
+       mPriorProb[9] <- 0.083
+       mPriorProb[10] <- 0.083
+       mPriorProb[11] <- 0.083
+       mPriorProb[12] <- 0.083
+
+
+for (i in 1:nSubjects){		
+
+       z[i] ~ dcat(mPriorProb[])  
+       eta2[i]   ~ dnorm(mu_eta2,tau_eta2) 
+        
+       for (c in 1:conditions){   
+
+            beta[i,c] ~ dlnorm(mu_b[c],sigma_b[c])    # beta priors distributed lognormally according to sampled hyperpriors
+            eta[i,c]   ~ dnorm(mu_eta[c],tau_eta[c])  # eta priors distributed lognormally according to sampled hyperpriors 
+
+	} # end of conditions
+
+} # end of subjects
+  
+
+##HYPERPRIORS
+
+#not condition-dependent hyperpriors
+ mu_eta2 ~ dunif(-1,1)           
+ tau_eta2 = pow(sigma_eta2,-2) 
+ sigma_eta2 ~ dunif(0.1, 1)      
+
+#condition-dependent hyperpriors
+for (c in 1:conditions){  
+
+  mu_b[c] ~ dunif(-2.3,2.3)         # mean of distribution of beta 
+  sigma_b[c] ~ dunif(0.01, 1.3)     # sigma of distribution of beta           
+  mu_eta[c] ~ dunif(-1,1)           # mean of distribution of eta 
+  tau_eta[c] = pow(sigma_eta[c],-2) # precision of distribution of eta 
+  sigma_eta[c] ~ dunif(0.1, 1)      # sigma of distribution of eta
+
+} # end of conditions
+
+} # end of model
